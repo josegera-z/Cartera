@@ -50,7 +50,11 @@ def enviar_correo(pdf_path, email_dest, nombre_cliente, total_mora, max_dias):
     msg = EmailMessage()
     msg['Subject'] = "CARTA DE COBRO"
     msg['From'] = SMTP_USER
-    msg['To'] = email_dest
+    
+    emails = email_dest.split(';')
+    msg['To'] = emails[0].strip()
+    if len(emails) > 1:
+        msg['Cc'] = ", ".join(e.strip() for e in emails[1:] if e.strip())
     
     mora_str = f"{total_mora:,.0f}".replace(",", ".")
     cuerpo = f"""Estimado(a) {nombre_cliente}
@@ -236,6 +240,15 @@ def generar(nit_especifico=None, db_session=None, masivo=False):
             
             pdf.multi_cell(0, 5, "Si al recibir esta carta usted se encuentra al día, por favor haga caso omiso a su contenido.")
             pdf.ln(6)
+            
+            pdf.set_font('helvetica', 'B', 10)
+            pdf.cell(0, 5, "Medios de pago autorizados:", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_font('helvetica', '', 10)
+            pdf.cell(0, 5, "- 035969999529 Cuenta corriente convenio - 1437748 Davivienda", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 5, "- 110188149553 Cuenta corriente Banco Popular", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 5, "- 60991634158 Cuenta corriente convenio - 63569", new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(6)
+
             pdf.cell(0, 5, "Atentamente,", new_x="LMARGIN", new_y="NEXT")
             pdf.ln(10)
             
@@ -273,7 +286,7 @@ def generar(nit_especifico=None, db_session=None, masivo=False):
             
             # Envío o apertura manual
             enviado = False
-            if correo:
+            if correo and "siesa" not in correo.lower():
                 print(f"Validación: Email encontrado: {correo}. Procediendo a envío.")
                 max_dias_cliente = max([int(f.dias_vencidos) for f in facturas if f.dias_vencidos is not None], default=0)
                 enviado = enviar_correo(pdf_path, correo, nombre_cliente, total_mora, max_dias_cliente)
@@ -282,7 +295,7 @@ def generar(nit_especifico=None, db_session=None, masivo=False):
                 else:
                     print("Resultado: PDF generado pero hubo un error en la conexión del correo.")
             else:
-                print(f"Validación: No se encontró email para {nombre_cliente}. Se abrirá el archivo generado.")
+                print(f"Validación: No se enviará correo para {nombre_cliente} (vacío o contiene 'siesa'). Se abrirá el archivo generado.")
                 abs_path = os.path.abspath(pdf_path)
                 try:
                     if not masivo:

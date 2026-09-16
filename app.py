@@ -95,14 +95,17 @@ def clean_phone(val):
     return s or None
 
 def clean_email(val):
-    """Normaliza emails: recorta, minúsculas y valida forma simple."""
+    """Normaliza emails: recorta, minúsculas y valida forma simple (soporta múltiples separados por ;)."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return None
     s = str(val).strip().lower()
     s = re.sub(r"\s+", "", s)
-    if re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", s):
-        return s
-    return None
+    emails = s.split(";")
+    valid_emails = []
+    for e in emails:
+        if re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", e):
+            valid_emails.append(e)
+    return ";".join(valid_emails) if valid_emails else None
 
 # ---- Null-safe parsers para MSSQL (evitan NaN/Timestamp) ----
 def to_int_nullsafe(val):
@@ -766,8 +769,25 @@ async def importar_datos_comerciales(file: UploadFile = File(...), db: Session =
                 nit_bd_limpio = re.sub(r'\D', '', nit_crudo.split('.')[0])
                 
                 if nit_bd_limpio in clientes_dict:
-                    for cliente in clientes_dict[nit_bd_limpio]:
-                        # Update fields
+                    lista_clientes = clientes_dict[nit_bd_limpio]
+                elif nit_bd_limpio:
+                    nombre_cliente = str(row.get("Nombre", row.get("Razón social", row.get("Razón Social", row.get("Razon social", row.get("Código", "SIN NOMBRE"))))))
+                    nuevo_cliente = models.Cliente(
+                        nit_cliente=nit_bd_limpio,
+                        razon_social=nombre_cliente,
+                        nro_docto_cruce="N/A",
+                        dias_vencidos=0,
+                        total_cop=0,
+                        valor_docto=0
+                    )
+                    db.add(nuevo_cliente)
+                    clientes_dict[nit_bd_limpio] = [nuevo_cliente]
+                    lista_clientes = clientes_dict[nit_bd_limpio]
+                else:
+                    continue
+                
+                for cliente in lista_clientes:
+                    # Update fields
                         cliente.fecha_ingreso = to_dt_nullsafe(row.get("Fecha ingreso"))
                         
                         MAPEO_CONDICIONES = {
