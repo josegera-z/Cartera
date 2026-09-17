@@ -286,16 +286,29 @@ def generar(nit_especifico=None, db_session=None, masivo=False):
             
             # Envío o apertura manual
             enviado = False
-            if correo and "siesa" not in correo.lower():
-                print(f"Validación: Email encontrado: {correo}. Procediendo a envío.")
-                max_dias_cliente = max([int(f.dias_vencidos) for f in facturas if f.dias_vencidos is not None], default=0)
-                enviado = enviar_correo(pdf_path, correo, nombre_cliente, total_mora, max_dias_cliente)
-                if enviado:
-                    print("Resultado: PDF generado y enviado exitosamente. Registro procesado en BD.")
+            if correo:
+                # Filtrar individualmente los correos que contengan siesa
+                emails_validos = [e.strip() for e in correo.split(';') if "siesa" not in e.lower() and e.strip()]
+                
+                if emails_validos:
+                    correo_a_enviar = ";".join(emails_validos)
+                    print(f"Validación: Email válido encontrado: {correo_a_enviar}. Procediendo a envío.")
+                    max_dias_cliente = max([int(f.dias_vencidos) for f in facturas if f.dias_vencidos is not None], default=0)
+                    enviado = enviar_correo(pdf_path, correo_a_enviar, nombre_cliente, total_mora, max_dias_cliente)
+                    if enviado:
+                        print("Resultado: PDF generado y enviado exitosamente. Registro procesado en BD.")
+                    else:
+                        print("Resultado: PDF generado pero hubo un error en la conexión del correo.")
                 else:
-                    print("Resultado: PDF generado pero hubo un error en la conexión del correo.")
+                    print(f"Validación: No se enviará correo para {nombre_cliente} (solo contiene correos SIESA). Se abrirá el archivo.")
+                    abs_path = os.path.abspath(pdf_path)
+                    try:
+                        if not masivo:
+                            subprocess.Popen(f'explorer /select,"{abs_path}"')
+                    except Exception as e:
+                        print(f"Error al abrir explorador: {e}")
             else:
-                print(f"Validación: No se enviará correo para {nombre_cliente} (vacío o contiene 'siesa'). Se abrirá el archivo generado.")
+                print(f"Validación: No se encontró email para {nombre_cliente}. Se abrirá el archivo generado.")
                 abs_path = os.path.abspath(pdf_path)
                 try:
                     if not masivo:
